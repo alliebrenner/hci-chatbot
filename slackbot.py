@@ -85,4 +85,4 @@ def run(bot_class):
 
 
 if __name__ == '__main__':
-    run(OxyCSBot) # FIXME
+    run(OxyCSBot)
