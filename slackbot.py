@@ -6,7 +6,7 @@ from time import sleep
 
 from slackclient import SlackClient
 
-from oxycsbot import OxyCSBot # FIXME
+from oxycsbot import oxycsbot # FIXME
 
 
 def get_token():
