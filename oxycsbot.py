@@ -1,43 +1,37 @@
 #!/usr/bin/env python3
-"""A tag-based chatbot framework."""
 
 import re
 from collections import Counter
 
+import sys
+print(sys.version)
 
 class ChatBot:
     """A tag-based chatbot framework
-
     This class is not meant to be instantiated. Instead, it provides helper
     functions that subclasses could use to create a tag-based chatbot. There
     are two main components to a chatbot:
-
     * A set of STATES to determine the context of a message.
     * A set of TAGS that match on words in the message.
-
     Subclasses must implement two methods for every state (except the
     default): the `on_enter_*` method and the `respond_from_*` method. For
     example, if there is a state called "confirm_delete", there should be two
     methods `on_enter_confirm_delete` and `respond_from_confirm_delete`.
-
     * `on_enter_*()` is what the chatbot should say when it enters a state.
         This method takes no arguments, and returns a string that is the
         chatbot's response. For example, a bot might enter the "confirm_delete"
         state after a message to delete a reservation, and the
         `on_enter_confirm_delete` might return "Are you sure you want to
         delete?".
-
     * `respond_from_*()` determines which state the chatbot should enter next.
         It takes two arguments: a string `message`, and a dictionary `tags`
         which counts the number of times each tag appears in the message. This
         function should always return with calls to either `go_to_state` or
         `finish`.
-
     The `go_to_state` method automatically calls the related `on_enter_*`
     method before setting the state of the chatbot. The `finish` function calls
     a `finish_*` function before setting the state of the chatbot to the
     default state.
-
     The TAGS class variable is a dictionary whose keys are words/phrases and
     whose values are (list of) tags for that word/phrase. If the words/phrases
     match a message, these tags are provided to the `respond_from_*` methods.
@@ -48,15 +42,14 @@ class ChatBot:
 
     def __init__(self, default_state):
         """Initialize a Chatbot.
-
         Arguments:
             default_state (str): The starting state of the agent.
         """
         if default_state not in self.STATES:
             print(' '.join([
                 'WARNING:',
-                'The default state {default_state} is listed as a state.',
-                'Perhaps you mean {self.STATES[0]}?',
+                'The default state ' + str(default_state) + ' is listed as a state.',
+                'Perhaps you mean ' + str(self.STATES[0]) + '?',
             ]))
         self.default_state = default_state
         self.state = self.default_state
@@ -72,11 +65,11 @@ class ChatBot:
                 prefixes.append('on_enter')
             prefixes.append('respond_from')
             for prefix in prefixes:
-                if not hasattr(self, '{prefix}_{state}'):
+                if not hasattr(self, prefix + '_' + state):
                     print(' '.join([
                         'WARNING:',
-                        'State "{state}" is defined',
-                        'but has no response function self.{prefix}_{state}',
+                        'State "' + str(state) + '" is defined',
+                        'but has no response function self.' + str(prefix) + '_' + str(state),
                     ]))
 
     def _check_tags(self):
@@ -89,25 +82,23 @@ class ChatBot:
             assert isinstance(tags, (tuple, list)), ' '.join([
                 'ERROR:',
                 'Expected tags for {phrase} to be str or List[str]',
-                'but got {tags.__class__.__name__}',
+                'but got ' + tags.__class__.__name__,
             ])
 
     def go_to_state(self, state):
         """Set the chatbot's state after responding appropriately.
-
         Arguments:
             state (str): The state to go to.
-
         Returns:
             str: The response of the chatbot.
         """
-        assert state in self.STATES, 'ERROR: state "{state}" is not defined'
+        assert state in self.STATES, 'ERROR: state "' + str(state) + ' is not defined'
         assert state != self.default_state, ' '.join([
             'WARNING:',
-            "do not call `go_to_state` on the default state {self.default_state};",
+            "do not call `go_to_state` on the default state " + self.default_state + ";",
             'use `finish` instead',
         ])
-        on_enter_method = getattr(self, 'on_enter_{state}')
+        on_enter_method = getattr(self, 'on_enter_' + state)
         response = on_enter_method()
         self.state = state
         return response
@@ -118,7 +109,10 @@ class ChatBot:
             message = input('> ')
             while message.lower() not in ('exit', 'quit'):
                 print()
-                print('{self.__class__.__name__}: {self.respond(message)}')
+                response = self.respond(message)
+                if response is None:
+                    print('WARNING: response from state ' + self.state + ' returned None')
+                print(self.__class__.__name__ + ': ' + str(response))
                 print()
                 message = input('> ')
         except (EOFError, KeyboardInterrupt):
@@ -127,37 +121,30 @@ class ChatBot:
 
     def respond(self, message):
         """Respond to a message.
-
         Arguments:
             message (str): The message from the user.
-
         Returns:
             str: The response of the chatbot.
         """
-        respond_method = getattr(self, 'respond_from_{self.state}')
+        respond_method = getattr(self, 'respond_from_' + self.state)
         return respond_method(message, self._get_tags(message))
 
     def finish(self, manner):
         """Set the chatbot back to the default state
-
         This function will call the appropriate `finish_*` method.
-
         Arguments:
             manner (str): The type of exit from the flow.
-
         Returns:
             str: The response of the chatbot.
         """
-        response = getattr(self, 'finish_{manner}')()
+        response = getattr(self, 'finish_' + manner)()
         self.state = self.default_state
         return response
 
     def _get_tags(self, message):
         """Find all tagged words/phrases in a message.
-
         Arguments:
             message (str): The message from the user.
-
         Returns:
             Dict[str, int]: A count of each tag found in the message.
         """
@@ -168,170 +155,197 @@ class ChatBot:
                 counter.update(tags)
         return counter
 
-
-class OxyCSBot(ChatBot):
-    """A simple chatbot that directs students to office hours of CS professors."""
+class oxycsbot(ChatBot):
 
     STATES = [
         'waiting',
-        'specific_faculty',
-        'unknown_faculty',
-        'unrecognized_faculty',
+        'thoughts_1',
+        'thoughts_2',
+        'increase_reason_1',
+        'increase_reason_2',
+        'unknown_benefit_1',
+        'unknown_benefit_2'
     ]
 
     TAGS = {
-        # intent
-        'office hours': 'office-hours',
-        'OH': 'office-hours',
-        'help': 'office-hours',
-
-        # professors
-        'kathryn': 'kathryn',
-        'leonard': 'kathryn',
-        'justin': 'justin',
-        'li': 'justin',
-        'jeff': 'jeff',
-        'miller': 'jeff',
-        'celia': 'celia',
-        'hsing-hau': 'hsing-hau',
+        # hello
+        'Hello': 'hello',
+        'hey': 'hello',
+        'hi': 'hello',
+        "what'sup": 'hello',
+        'whats up': 'hello',
+        'whats up?': 'hello',
+        'hello':'hello',
 
         # generic
         'thanks': 'thanks',
         'okay': 'success',
         'bye': 'success',
-        'yes': 'yes',
-        'yep': 'yes',
-        'no': 'no',
-        'nope': 'no',
+        'yes':'yes',
+        'yep':'yes',
+        'no':'no',
+        'nope':'no',
+
+        #positive tags
+        'ok':'yes',
+        'okay':'yes',
+        'sounds good':'yes',
+        'yes':'yes',
+        'all right':'yes',
+        'very well':'yes',
+        'of course':'yes',
+        'by all means':'yes',
+        'sure':'yes',
+        'certainly':'yes',
+        'absolutely':'yes',
+        'indeed':'yes',
+        'right':'yes',
+        'affirmative':'yes',
+        'agreed':'yes',
+
+        #negative tags
+        'no':'no',
+        'nope':'no',
+        'absolutely not':'no',
+        'most certainly not':'no',
+        'of course not':'no',
+        'under no circumstances':'no',
+        'by no means':'no',
+        'not at all':'no',
+        'negative':'no',
+        'never':'no',
+        'not really':'no',
+
     }
 
-    PROFESSORS = [
-        'celia',
-        'hsing-hau',
-        'jeff',
-        'justin',
-        'kathryn',
-    ]
+
+    #BENEFITS = ['increase_salary',
+    #            'more_paid_time_off',
+    #]
+
 
     def __init__(self):
         """Initialize the OxyCSBot.
-
-        The `professor` member variable stores whether the target
-        professor has been identified.
+        The `benefits` member variable stores whether the target
+        benefit has been identified.
         """
         super().__init__(default_state='waiting')
-        self.professor = None
+        self.benefits = None
 
-    def get_office_hours(self, professor):
-        """Find the office hours of a professor.
 
-        Arguments:
-            professor (str): The professor of interest.
-
-        Returns:
-            str: The office hours of that professor.
-        """
-        office_hours = {
-            'celia': 'F 12-1:45pm; F 2:45-4:00pm',
-            'hsing-hau': 'T 1-2:30pm; Th 10:30am-noon',
-            'jeff': 'unknown',
-            'justin': 'T 1-2pm; W noon-1pm; F 3-4pm',
-            'kathryn': 'MWF 4-5pm',
-        }
-        return office_hours[professor]
-
-    def get_office(self, professor):
-        """Find the office of a professor.
-
-        Arguments:
-            professor (str): The professor of interest.
-
-        Returns:
-            str: The office of that professor.
-        """
-        office = {
-            'celia': 'Swan 216',
-            'hsing-hau': 'Swan 302',
-            'jeff': 'Fowler 321',
-            'justin': 'Swan B102',
-            'kathryn': 'Swan B101',
-        }
-        return office[professor]
-
-    # "waiting" state functions
+        # "waiting" state functions
 
     def respond_from_waiting(self, message, tags):
-        self.professor = None
-        if 'office-hours' in tags:
-            for professor in self.PROFESSORS:
-                if professor in tags:
-                    self.professor = professor
-                    return self.go_to_state('specific_faculty')
-            return self.go_to_state('unknown_faculty')
-        elif 'thanks' in tags:
-            return self.finish('thanks')
+        #self.increase_salary = None
+        #self.more_paid_time_off = None
+        #print(tags)
+        if 'hello' in tags:
+            return self.go_to_state('thoughts_1')
         else:
-            return self.finish('confused')
+            return self.finish('hello')
 
-    # "specific_faculty" state functions
 
-    def on_enter_specific_faculty(self):
-        response = '\n'.join([
-            "{self.professor.capitalize()}'s office hours are {self.get_office_hours(self.professor)}",
-            'Do you know where their office is?',
-        ])
+        #thoughts_1 state functions
+    def on_enter_thoughts_1(self):
+        response = "Hello boss, I would like to discuss increasing my salary. Can I discuss this with you?"
         return response
 
-    def respond_from_specific_faculty(self, message, tags):
+    def respond_from_thoughts_1(self, message, tags):
+        if 'yes' in tags:
+            return self.go_to_state('increase_reason_1')
+        if 'no' in tags:
+            return self.go_to_state('thoughts_2')
+        else:
+            return self.go_to_state('unknown_benefit_1')
+
+
+            # "increase_reason_1" state functions
+    def on_enter_increase_reason_1(self):
+        reason_1 = "I believe that I deserve an increase in salary because for the past year I have consistently submit top quality work benefitting the company image and stock value. So what do you think?"
+        return reason_1
+
+    def respond_from_increase_reason_1(self, message, tags):
         if 'yes' in tags:
             return self.finish('success')
+        if 'no' in tags:
+            return self.go_to_state('thoughts_2')
         else:
-            return self.finish('location')
+            return self.go_to_state('unknown_benefit_1')
 
-    # "unknown_faculty" state functions
 
-    def on_enter_unknown_faculty(self):
-        return "Who's office hours are you looking for?"
+            #thoughts_2 state functions
+    def on_enter_thoughts_2(self):
+        response_2 = "Ok, then can I please discuss more paid time off?"
+        return response_2
 
-    def respond_from_unknown_faculty(self, message, tags):
-        for professor in self.PROFESSORS:
-            if professor in tags:
-                self.professor = professor
-                return self.go_to_state('specific_faculty')
-        return self.go_to_state('unrecognized_faculty')
+    def respond_from_thoughts_2(self, message, tags):
+        if 'yes' in tags:
+            return self.go_to_state('increase_reason_2')
+        if 'no' in tags:
+            return self.finish('reject')
+        else:
+            return self.go_to_state('unknown_benefit_2')
 
-    # "unrecognized_faculty" state functions
 
-    def on_enter_unrecognized_faculty(self):
-        return ' '.join([
-            "I'm not sure I understand - are you looking for",
-            "Celia, Hsing-hau, Jeff, Justin, or Kathryn?",
-        ])
+            # "increase_reason_2" state functions
+    def on_enter_increase_reason_2(self):
+        reason_2 = "I believe I have worked without taking any paid time off for the past 6 months and produced top quality work consistently so I think a little break would be nice. What do you think about this?"
+        return reason_2
 
-    def respond_from_unrecognized_faculty(self, message, tags):
-        for professor in self.PROFESSORS:
-            if professor in tags:
-                self.professor = professor
-                return self.go_to_state('specific_faculty')
-        return self.finish('fail')
+    def respond_from_increase_reason_2(self, message, tags):
+        if 'yes' in tags:
+            return self.finish('success')
+        if 'no' in tags:
+            return self.finish('reject')
+        else:
+            return self.go_to_state('unknown_benefit_2')
 
-    # "finish" functions
+
+            # "unknown_benefit_1" state functions
+    def on_enter_unknown_benefit_1(self):
+        return self.finish('confused')
+
+    def respond_from_unknown_benefit_1(self, message, tags):
+        if 'yes' in tags:
+            return self.go_to_state('increase_reason_1')
+        else:
+            return self.finish('fail')
+
+
+            # "unknown_benefit_2" state functions
+    def on_enter_unknown_benefit_2(self):
+        return self.finish('confused')
+
+    def respond_from_unknown_benefit_2(self, message, tags):
+        #for increase_salary in self.BENEFITS:
+            if 'yes' in tags:
+                #self.increase_salary = increase_salary
+                return self.go_to_state('increase_reason_2')
+            else:
+                return self.finish('fail')
+
+
+
+        # "finish" functions
 
     def finish_confused(self):
-        return "Sorry, I'm just a simple bot that can't understand much. You can ask me about office hours though!"
+        return "I am sorry I do not understand what you are saying. Could we please get back to the topic at hand?"
 
-    def finish_location(self):
-        return "{self.professor.capitalize()}'s office is in {self.get_office(self.professor)}"
+    def finish_hello(self):
+        return "I am sorry I do not understand. Can you please say hello"
 
     def finish_success(self):
-        return 'Great, let me know if you need anything else!'
+        return 'Great, thank you so much!'
 
     def finish_fail(self):
-        return "I've tried my best but I still don't understand. Maybe try asking other students?"
+        return "I am sorry, I still do not understand what you are trying to say. Maybe we can discuss this again at a later point."
 
-    def finish_thanks(self):
-        return "You're welcome!"
+    def finish_reject(self):
+        return "Ok, I understand. Thank you for your time."
+
+    #def finish_thanks(self):
+        #return "You're welcome!"
 
 
 if __name__ == '__main__':
-    OxyCSBot().chat()
+    oxycsbot().chat()
